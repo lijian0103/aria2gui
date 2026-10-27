@@ -1,0 +1,90 @@
+name: Build Aria2GUI
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (macOS, x86_64)
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Select Xcode
+        run: |
+          # 16.4 是与这个 2015 年老项目兼容性最好的版本；镜像默认已指向它。
+          if [ -d /Applications/Xcode_16.4.app ]; then
+            sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer
+          fi
+          xcodebuild -version
+          xcode-select -p
+          sw_vers
+
+      - name: Show project schemes
+        run: xcodebuild -workspace Aria2GUI.xcworkspace -list
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace Aria2GUI.xcworkspace \
+            -scheme Aria2GUI \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'generic/platform=macOS' \
+            ARCHS=x86_64 \
+            ONLY_ACTIVE_ARCH=NO \
+            MACOSX_DEPLOYMENT_TARGET=10.13 \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee build.log
+
+      - name: Package
+        run: |
+          APP="build/Build/Products/Release/Aria2GUI.app"
+          test -d "$APP"
+          chmod +x "$APP/Contents/Resources/aria2c"
+          test -x "$APP/Contents/Resources/aria2c"
+          test -d "$APP/Contents/Resources/public"
+          test -f "$APP/Contents/Resources/Base.lproj/MainMenu.nib" || \
+            test -f "$APP/Contents/Resources/MainMenu.nib"
+
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP" || true
+
+          ditto -c -k --keepParent "$APP" Aria2GUI-macOS-x86_64.zip
+          ls -lh Aria2GUI-macOS-x86_64.zip
+          du -sh "$APP"
+          file "$APP/Contents/MacOS/Aria2GUI"
+
+          {
+            echo "### Aria2GUI build"
+            echo ""
+            echo "- 架构: x86_64"
+            echo "- 部署目标: macOS 10.13"
+            echo "- 产物: \`Aria2GUI-macOS-x86_64.zip\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Aria2GUI-macOS-x86_64
+          path: Aria2GUI-macOS-x86_64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: ignore
+          retention-days: 7
