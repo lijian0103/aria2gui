@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -79,6 +79,26 @@ jobs:
           path: Aria2GUI-macOS-x86_64.zip
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish to Releases
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG="ci-latest"
+          ASSET="Aria2GUI-macOS-x86_64.zip"
+          NOTES="Automated CI build of ${GITHUB_SHA} at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" --clobber
+            gh release edit "$TAG" --notes "$NOTES" --prerelease
+          else
+            gh release create "$TAG" "$ASSET" \
+              --title "Aria2GUI CI build" \
+              --notes "$NOTES" \
+              --prerelease \
+              --target "$GITHUB_SHA"
+          fi
 
       - name: Upload build log on failure
         if: failure()

@@ -1,3 +1,7 @@
 
 Aria2GUI.xcodeproj/project.xcworkspace/xcuserdata/Nick.xcuserdatad/UserInterfaceState.xcuserstate
 Aria2GUI.xcworkspace/xcuserdata/nick.xcuserdatad/UserInterfaceState.xcuserstate
+
+# Local build artifacts
+/Aria2GUI-macOS-x86_64.zip
+/local-build/
